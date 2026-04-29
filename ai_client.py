@@ -128,10 +128,35 @@ async def speech_to_text(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
 
 
 _RUSSIAN_RE = re.compile(r"[А-Яа-яЁё]")
+_MARKDOWN_RE = re.compile(r"[*_`~#>]+")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_PARENS_RE = re.compile(r"\(([^()]*)\)")
+_BRACKETS_RE = re.compile(r"\[([^\[\]]*)\]")
+_MULTISPACE_RE = re.compile(r"\s+")
 
 
 def has_russian(text: str) -> bool:
     return bool(_RUSSIAN_RE.search(text))
+
+
+def _unwrap_or_drop(s: str, pattern: re.Pattern[str]) -> str:
+    """Qavs ichida ruscha bo'lsa — ichini saqlaydi, qavslarni olib tashlaydi.
+    Ruscha bo'lmasa — butun qavsni o'chiradi (transliteratsiya/izoh)."""
+    def repl(m: re.Match[str]) -> str:
+        content = m.group(1)
+        return content if _RUSSIAN_RE.search(content) else " "
+    return pattern.sub(repl, s)
+
+
+def _clean_for_tts(text: str) -> str:
+    """Markdown, HTML, transliteratsiya qavslari va keraksiz belgilarni olib tashlaydi."""
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = _unwrap_or_drop(text, _PARENS_RE)
+    text = _unwrap_or_drop(text, _BRACKETS_RE)
+    text = _MARKDOWN_RE.sub("", text)
+    # Toq qolgan qavslar bo'lsa — ovoz pauza qilmasin uchun olib tashlaymiz.
+    text = re.sub(r"[()\[\]<>]", " ", text)
+    return text
 
 
 async def extract_russian(text: str) -> str:
@@ -139,14 +164,17 @@ async def extract_russian(text: str) -> str:
     if not has_russian(text):
         return ""
 
+    text = _clean_for_tts(text)
+
     direct_lines = []
     for line in text.splitlines():
         ru_chars = _RUSSIAN_RE.findall(line)
         if len(ru_chars) >= 3:
             cleaned = re.sub(r"^[^А-Яа-яЁё]+", "", line)
             cleaned = re.sub(r"[^А-Яа-яЁё.,!?\-\s'’\":]+$", "", cleaned)
-            if cleaned.strip():
-                direct_lines.append(cleaned.strip())
+            cleaned = _MULTISPACE_RE.sub(" ", cleaned).strip()
+            if cleaned:
+                direct_lines.append(cleaned)
 
     if direct_lines:
         return " ".join(direct_lines)[:1000]
@@ -157,4 +185,4 @@ async def extract_russian(text: str) -> str:
         max_output_tokens=400,
     )
     response = await _generate(text, config)
-    return (response.text or "").strip()[:1000]
+    return _MULTISPACE_RE.sub(" ", (response.text or "")).strip()[:1000]
