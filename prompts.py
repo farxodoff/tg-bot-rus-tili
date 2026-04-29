@@ -82,32 +82,32 @@ MODE_TITLES = {
 
 MODE_INTROS = {
     "grammar": (
-        "📚 *Grammatika rejimi.*\n"
-        "Qaysi mavzu kerak? Masalan: _\"Otlarning kelishiklari\"_, "
-        "_\"Hozirgi zamon fe'llari\"_, _\"Sonlar\"_."
+        "📚 <b>Grammatika rejimi.</b>\n"
+        "Qaysi mavzu kerak? Masalan: <i>\"Otlarning kelishiklari\"</i>, "
+        "<i>\"Hozirgi zamon fe'llari\"</i>, <i>\"Sonlar\"</i>."
     ),
     "vocab": (
-        "💬 *So'z boyligi rejimi.*\n"
-        "Qaysi mavzudagi so'zlarni o'rganmoqchisiz? Masalan: _\"oila\"_, "
-        "_\"oziq-ovqat\"_, _\"sayohat\"_, _\"kasblar\"_."
+        "💬 <b>So'z boyligi rejimi.</b>\n"
+        "Qaysi mavzudagi so'zlarni o'rganmoqchisiz? Masalan: <i>\"oila\"</i>, "
+        "<i>\"oziq-ovqat\"</i>, <i>\"sayohat\"</i>, <i>\"kasblar\"</i>."
     ),
     "qa": (
-        "❓ *Savol-javob rejimi.*\n"
-        "Qaysi vaziyat kerak? Masalan: _\"Salomlashish\"_, _\"Do'konda\"_, "
-        "_\"Tanishuv\"_, _\"Yo'l so'rash\"_."
+        "❓ <b>Savol-javob rejimi.</b>\n"
+        "Qaysi vaziyat kerak? Masalan: <i>\"Salomlashish\"</i>, <i>\"Do'konda\"</i>, "
+        "<i>\"Tanishuv\"</i>, <i>\"Yo'l so'rash\"</i>."
     ),
     "translate": (
-        "🔄 *Tarjima rejimi.*\n"
+        "🔄 <b>Tarjima rejimi.</b>\n"
         "Tarjima qilinadigan so'z yoki matnni yuboring. "
         "(O'zbekcha ↔ Ruscha avtomatik aniqlanadi.)"
     ),
     "dialog": (
-        "🗣 *Dialog rejimi.*\n"
+        "🗣 <b>Dialog rejimi.</b>\n"
         "Men siz bilan rus tilida suhbat boshlayman. Javob yozing — "
         "men xatolaringizni tuzatib boraman."
     ),
     "analyze": (
-        "📝 *Matn tahlili rejimi.*\n"
+        "📝 <b>Matn tahlili rejimi.</b>\n"
         "Ruscha matn yuboring — men uni tarjima qilaman va grammatik "
         "jihatdan tahlil qilib beraman."
     ),
@@ -117,7 +117,7 @@ DIALOG_OPENER = (
     "🤖 (Ruscha): Привет! Как тебя зовут?\n"
     "🔊 (Transliteratsiya): Privet! Kak tebya zovut?\n"
     "🇺🇿 (O'zbekcha): Salom! Ismingiz nima?\n\n"
-    "_Ruscha javob yozib ko'ring._"
+    "<i>Ruscha javob yozib ko'ring.</i>"
 )
 
 

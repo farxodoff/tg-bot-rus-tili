@@ -1,6 +1,7 @@
-"""Ovozli xabarlarni qabul qilish: Whisper bilan transkripsiya, keyin chat'ga uzatish."""
+"""Ovozli xabarlarni qabul qilish: Gemini multimodal bilan transkripsiya, keyin chat'ga uzatish."""
 from __future__ import annotations
 
+import html
 import logging
 from io import BytesIO
 
@@ -62,7 +63,9 @@ async def on_voice(
         await message.answer("⚠️ Ovozli xabar bo'sh ko'rindi.")
         return
 
-    await message.answer(f"📝 *Sizning ovozingiz:*\n_{transcript}_", parse_mode="Markdown")
+    await message.answer(
+        f"📝 <b>Sizning ovozingiz:</b>\n<i>{html.escape(transcript)}</i>"
+    )
 
     current_state = await state.get_state()
     if current_state != ModeState.chatting.state:
@@ -89,9 +92,8 @@ async def on_voice(
         return
 
     await db.add_message(message.from_user.id, mode, "user", transcript)
-    msg = await message.answer(reply)
+    await message.answer(reply, parse_mode=None, reply_markup=reply_actions())
     await db.add_message(message.from_user.id, mode, "assistant", reply)
-    await msg.edit_reply_markup(reply_markup=reply_actions(message_idx=msg.message_id))
 
     await db.add_points(message.from_user.id, 2)
     await db.touch_streak(message.from_user.id)

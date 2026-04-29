@@ -29,17 +29,14 @@ def back_menu() -> InlineKeyboardMarkup:
     )
 
 
-def reply_actions(message_idx: int | None = None) -> InlineKeyboardMarkup:
+def reply_actions() -> InlineKeyboardMarkup:
     """Bot javobi ostida — eshitish va menyu tugmalari."""
-    rows = []
-    if message_idx is not None:
-        rows.append(
-            [InlineKeyboardButton(text="🔊 Eshitish", callback_data=f"tts:{message_idx}")]
-        )
-    rows.append(
-        [InlineKeyboardButton(text="⬅️ Asosiy menyu", callback_data="open:menu")]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔊 Eshitish", callback_data="tts")],
+            [InlineKeyboardButton(text="⬅️ Asosiy menyu", callback_data="open:menu")],
+        ]
     )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # ---- Sozlamalar ----
@@ -75,7 +72,7 @@ QUIZ_TOPICS = [
     ("Sayohat", "sayohat"),
     ("Fe'l zamonlari", "fe'l zamonlari"),
     ("Kelishiklar", "kelishiklar"),
-    ("Tasodifiy", "aralash"),
+    ("Aralash mavzular", "aralash"),
 ]
 
 

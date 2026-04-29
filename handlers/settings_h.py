@@ -18,29 +18,28 @@ async def open_settings(callback: CallbackQuery, user: User) -> None:
 
 async def _render_settings(callback: CallbackQuery, user: User) -> None:
     text = (
-        "⚙️ *Sozlamalar*\n\n"
-        f"📈 Daraja: *{user.level}*\n"
+        "⚙️ <b>Sozlamalar</b>\n\n"
+        f"📈 Daraja: <b>{user.level}</b>\n"
         f"🔔 Kunlik so'z: "
-        f"*{'yoqilgan' if user.daily_enabled else 'oʻchirilgan'}*\n\n"
+        f"<b>{'yoqilgan' if user.daily_enabled else 'oʻchirilgan'}</b>\n\n"
         "Quyidagi parametrlardan birini tanlang:"
     )
     markup = settings_menu(user.level, user.daily_enabled)
     try:
-        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
+        await callback.message.edit_text(text, reply_markup=markup)
     except Exception:
-        await callback.message.answer(text, parse_mode="Markdown", reply_markup=markup)
+        await callback.message.answer(text, reply_markup=markup)
     await callback.answer()
 
 
 @router.callback_query(F.data == "settings:level")
 async def settings_level(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
-        "📈 *Daraja tanlang:*\n\n"
-        "• *A1* — boshlang'ich (alifbo, salomlashish)\n"
-        "• *A2* — quyi-o'rta (kundalik mavzular)\n"
-        "• *B1* — o'rta (mustaqil suhbat)\n"
-        "• *B2* — yuqori-o'rta (murakkab gaplar)",
-        parse_mode="Markdown",
+        "📈 <b>Daraja tanlang:</b>\n\n"
+        "• <b>A1</b> — boshlang'ich (alifbo, salomlashish)\n"
+        "• <b>A2</b> — quyi-o'rta (kundalik mavzular)\n"
+        "• <b>B1</b> — o'rta (mustaqil suhbat)\n"
+        "• <b>B2</b> — yuqori-o'rta (murakkab gaplar)",
         reply_markup=level_picker(),
     )
     await callback.answer()

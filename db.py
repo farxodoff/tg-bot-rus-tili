@@ -10,6 +10,10 @@ import aiosqlite
 LEVELS = ("A1", "A2", "B1", "B2")
 DEFAULT_LEVEL = "A1"
 
+# Bir mode/foydalanuvchi uchun saqlanadigan eng oxirgi xabarlar soni.
+# Eskilari add_message ichida avtomatik o'chiriladi.
+MAX_MESSAGES_PER_MODE = 50
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -44,6 +48,12 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS fsm_state (
+    key    TEXT PRIMARY KEY,
+    state  TEXT,
+    data   TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_user_mode
     ON messages(user_id, mode, id DESC);
 
@@ -67,7 +77,7 @@ class User:
 
 
 def _now() -> str:
-    return dt.datetime.utcnow().isoformat(timespec="seconds")
+    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
 
 
 class Database:
@@ -79,6 +89,10 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = await aiosqlite.connect(self.path)
         self._conn.row_factory = aiosqlite.Row
+        # WAL — bir vaqtda o'qish/yozish, kamroq lock.
+        await self._conn.execute("PRAGMA journal_mode=WAL")
+        await self._conn.execute("PRAGMA synchronous=NORMAL")
+        await self._conn.execute("PRAGMA foreign_keys=ON")
         await self._conn.executescript(SCHEMA)
         await self._conn.commit()
 
@@ -238,6 +252,7 @@ class Database:
             SELECT COALESCE(NULLIF(full_name, ''), username, 'anon') AS name,
                    points
             FROM users
+            WHERE points > 0
             ORDER BY points DESC
             LIMIT ?
             """,
@@ -256,6 +271,19 @@ class Database:
             VALUES (?, ?, ?, ?, ?)
             """,
             (user_id, mode, role, content, _now()),
+        )
+        # Eski xabarlarni trim qilamiz — har mode uchun faqat oxirgi N tasi qoladi.
+        await self.conn.execute(
+            """
+            DELETE FROM messages
+            WHERE user_id = ? AND mode = ? AND id NOT IN (
+                SELECT id FROM messages
+                WHERE user_id = ? AND mode = ?
+                ORDER BY id DESC
+                LIMIT ?
+            )
+            """,
+            (user_id, mode, user_id, mode, MAX_MESSAGES_PER_MODE),
         )
         await self.conn.commit()
 

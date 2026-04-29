@@ -7,13 +7,13 @@ import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
 from config import settings
 from db import Database
+from fsm_storage import SqliteStorage
 from handlers import build_root_router
 from middlewares import DBMiddleware, ThrottlingMiddleware
 from scheduler import setup_scheduler
@@ -44,15 +44,16 @@ async def set_commands(bot: Bot) -> None:
 
 
 def build_dispatcher(db: Database) -> Dispatcher:
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=SqliteStorage(db))
 
     db_mw = DBMiddleware(db)
     throttle_mw = ThrottlingMiddleware(rate=settings.throttle_rate)
 
-    dp.message.middleware(db_mw)
-    dp.callback_query.middleware(db_mw)
+    # Throttle birinchi: cheklangan event DB'ga ham yozmasin.
     dp.message.middleware(throttle_mw)
     dp.callback_query.middleware(throttle_mw)
+    dp.message.middleware(db_mw)
+    dp.callback_query.middleware(db_mw)
 
     dp.include_router(build_root_router())
     return dp
@@ -67,7 +68,7 @@ async def run_polling() -> None:
 
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=None),
+        default=DefaultBotProperties(parse_mode="HTML"),
     )
     dp = build_dispatcher(db)
 
@@ -95,7 +96,7 @@ async def run_webhook() -> None:
 
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=None),
+        default=DefaultBotProperties(parse_mode="HTML"),
     )
     dp = build_dispatcher(db)
 

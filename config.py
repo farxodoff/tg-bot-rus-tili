@@ -74,3 +74,11 @@ settings = Settings(
     webhook_port=_int("WEBHOOK_PORT", 8080),
     webhook_secret=_get("WEBHOOK_SECRET", ""),
 )
+
+
+# Webhook rejimida secret bo'lmasa endpoint himoyasiz qoladi.
+if settings.use_webhook and not settings.webhook_secret:
+    raise RuntimeError(
+        ".env: WEBHOOK_URL berilgan, lekin WEBHOOK_SECRET bo'sh. "
+        "Webhook endpoint'ni himoya qilish uchun WEBHOOK_SECRET ni o'rnating."
+    )

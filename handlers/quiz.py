@@ -1,6 +1,7 @@
 """Quiz (test) rejimi: 5 ta savol, ball, natija."""
 from __future__ import annotations
 
+import html
 import logging
 
 from aiogram import F, Router
@@ -26,18 +27,11 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "open:quiz")
 async def open_quiz(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(QuizState.choosing_topic)
+    text = "🎯 <b>Test rejimi.</b>\n\nMavzu tanlang:"
     try:
-        await callback.message.edit_text(
-            "🎯 *Test rejimi.*\n\nMavzu tanlang:",
-            parse_mode="Markdown",
-            reply_markup=quiz_topics(),
-        )
+        await callback.message.edit_text(text, reply_markup=quiz_topics())
     except Exception:
-        await callback.message.answer(
-            "🎯 *Test rejimi.*\n\nMavzu tanlang:",
-            parse_mode="Markdown",
-            reply_markup=quiz_topics(),
-        )
+        await callback.message.answer(text, reply_markup=quiz_topics())
     await callback.answer()
 
 
@@ -124,13 +118,12 @@ async def _send_question(callback: CallbackQuery, state: FSMContext) -> None:
 
     q = questions[idx]
     text = (
-        f"*Savol {idx + 1}/{len(questions)}* "
+        f"<b>Savol {idx + 1}/{len(questions)}</b> "
         f"(Ball: {score})\n\n"
-        f"{q['question']}"
+        f"{html.escape(q['question'])}"
     )
     await callback.message.answer(
         text,
-        parse_mode="Markdown",
         reply_markup=quiz_options(q["options"]),
     )
 
@@ -162,21 +155,22 @@ async def on_answer(
 
     if is_correct:
         score += 1
-        feedback = "✅ *To'g'ri!*"
+        feedback = "✅ <b>To'g'ri!</b>"
     else:
+        correct_label = f"{chr(0x41 + correct_idx)}. {q['options'][correct_idx]}"
         feedback = (
-            f"❌ *Noto'g'ri.* To'g'ri javob: "
-            f"*{chr(0x41 + correct_idx)}. {q['options'][correct_idx]}*"
+            f"❌ <b>Noto'g'ri.</b> To'g'ri javob: "
+            f"<b>{html.escape(correct_label)}</b>"
         )
 
     if q["explanation"]:
-        feedback += f"\n\n💡 {q['explanation']}"
+        feedback += f"\n\n💡 {html.escape(q['explanation'])}"
 
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await callback.message.answer(feedback, parse_mode="Markdown")
+    await callback.message.answer(feedback)
     await callback.answer()
 
     idx += 1
@@ -188,12 +182,11 @@ async def on_answer(
 
         verdict = _verdict(score, len(questions))
         await callback.message.answer(
-            f"🏁 *Test tugadi!*\n\n"
-            f"Natija: *{score}/{len(questions)}*\n"
-            f"Mavzu: {topic}\n"
+            f"🏁 <b>Test tugadi!</b>\n\n"
+            f"Natija: <b>{score}/{len(questions)}</b>\n"
+            f"Mavzu: {html.escape(topic)}\n"
             f"+{score * 5} ball 🌟\n\n"
             f"{verdict}",
-            parse_mode="Markdown",
             reply_markup=quiz_finished(),
         )
         return

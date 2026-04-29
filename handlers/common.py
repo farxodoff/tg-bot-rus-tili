@@ -14,23 +14,23 @@ router = Router(name="common")
 
 WELCOME_TEXT = (
     "Salom! 👋\n\n"
-    "Men sizga *rus tilini o'rgatuvchi* botman. Quyidagi rejimlardan birini tanlang:\n\n"
-    "📚 *Grammatika* — qoidalar va misollar\n"
-    "💬 *So'z boyligi* — yangi so'zlar va iboralar\n"
-    "❓ *Savol-javob* — kundalik suhbat shablonlari\n"
-    "🔄 *Tarjima* — o'zbekcha ↔ ruscha\n"
-    "🗣 *Dialog* — men bilan ruscha suhbatlashing\n"
-    "📝 *Matn tahlili* — ruscha matnni tahlil qilish\n"
-    "🎯 *Test* — bilimingizni sinab ko'ring\n\n"
+    "Men sizga <b>rus tilini o'rgatuvchi</b> botman. Quyidagi rejimlardan birini tanlang:\n\n"
+    "📚 <b>Grammatika</b> — qoidalar va misollar\n"
+    "💬 <b>So'z boyligi</b> — yangi so'zlar va iboralar\n"
+    "❓ <b>Savol-javob</b> — kundalik suhbat shablonlari\n"
+    "🔄 <b>Tarjima</b> — o'zbekcha ↔ ruscha\n"
+    "🗣 <b>Dialog</b> — men bilan ruscha suhbatlashing\n"
+    "📝 <b>Matn tahlili</b> — ruscha matnni tahlil qilish\n"
+    "🎯 <b>Test</b> — bilimingizni sinab ko'ring\n\n"
     "🔊 Ovozli xabar yuborsangiz — sizni eshitib, ruscha matnga aylantirib beraman.\n"
-    "🎧 Bot javoblarini eshitish uchun har xabar ostidagi *🔊 Eshitish* tugmasini bosing.\n\n"
+    "🎧 Bot javoblarini eshitish uchun har xabar ostidagi <b>🔊 Eshitish</b> tugmasini bosing.\n\n"
     "/menu — istalgan paytda asosiy menyu\n"
     "/help — yordam"
 )
 
 
 HELP_TEXT = (
-    "*Buyruqlar:*\n"
+    "<b>Buyruqlar:</b>\n"
     "/start — botni qayta ishga tushirish\n"
     "/menu — asosiy menyu\n"
     "/stats — sizning statistikangiz\n"
@@ -38,8 +38,8 @@ HELP_TEXT = (
     "/reset — joriy rejim suhbat tarixini tozalash\n"
     "/cancel — joriy amalni bekor qilish\n"
     "/help — yordam\n\n"
-    "*Maslahat:* ovozli xabar yuborib, ruscha gapirib mashq qiling. "
-    "Bot sizni Whisper orqali tushunadi va to'g'ri javob beradi."
+    "<b>Maslahat:</b> ovozli xabar yuborib, ruscha gapirib mashq qiling. "
+    "Bot sizni AI orqali tushunadi va to'g'ri javob beradi."
 )
 
 
@@ -47,11 +47,7 @@ HELP_TEXT = (
 async def cmd_start(message: Message, state: FSMContext, db: Database) -> None:
     await state.clear()
     await db.touch_streak(message.from_user.id)
-    await message.answer(
-        WELCOME_TEXT,
-        parse_mode="Markdown",
-        reply_markup=main_menu(),
-    )
+    await message.answer(WELCOME_TEXT, reply_markup=main_menu())
 
 
 @router.message(Command("menu"))
@@ -62,7 +58,7 @@ async def cmd_menu(message: Message, state: FSMContext) -> None:
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    await message.answer(HELP_TEXT, parse_mode="Markdown")
+    await message.answer(HELP_TEXT)
 
 
 @router.message(Command("cancel"))

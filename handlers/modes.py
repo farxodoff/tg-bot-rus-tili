@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -34,18 +33,11 @@ async def on_mode_pick(
     await db.clear_history(callback.from_user.id, mode)
 
     intro = MODE_INTROS[mode]
+    text = f"{MODE_TITLES[mode]}\n\n{intro}"
     try:
-        await callback.message.edit_text(
-            f"{MODE_TITLES[mode]}\n\n{intro}",
-            parse_mode="Markdown",
-            reply_markup=back_menu(),
-        )
+        await callback.message.edit_text(text, reply_markup=back_menu())
     except Exception:
-        await callback.message.answer(
-            f"{MODE_TITLES[mode]}\n\n{intro}",
-            parse_mode="Markdown",
-            reply_markup=back_menu(),
-        )
+        await callback.message.answer(text, reply_markup=back_menu())
 
     if mode == "dialog":
         await callback.message.answer(DIALOG_OPENER)
@@ -99,15 +91,15 @@ async def on_chat_message(
         return
 
     await db.add_message(user_id, mode, "user", message.text)
-    msg = await message.answer(reply)
+    # AI matnida `<`, `>`, `&` bo'lishi mumkin — HTML parse rejimida xato bermasin.
+    await message.answer(reply, parse_mode=None, reply_markup=reply_actions())
     await db.add_message(user_id, mode, "assistant", reply)
-    await msg.edit_reply_markup(reply_markup=reply_actions(message_idx=msg.message_id))
 
     await db.add_points(user_id, 1)
     await db.touch_streak(user_id)
 
 
-@router.callback_query(F.data.startswith("tts:"))
+@router.callback_query(F.data == "tts")
 async def on_tts(callback: CallbackQuery) -> None:
     """Avvalgi xabarning ruscha qismini ovoz qilib yuboradi."""
     if not callback.message or not callback.message.reply_to_message:
