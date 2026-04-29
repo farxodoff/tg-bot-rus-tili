@@ -7,6 +7,7 @@ from io import BytesIO
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from google.genai import errors
 
 from ai_client import chat, speech_to_text
 from db import Database, User
@@ -44,8 +45,16 @@ async def on_voice(
 
     try:
         transcript = await speech_to_text(audio_bytes, mime=mime)
+    except errors.APIError as e:
+        code = getattr(e, "code", None)
+        logger.warning("STT API xatosi: code=%s", code)
+        if code == 503:
+            await message.answer("⏳ Gemini server band. 30 soniyadan keyin qayta urinib ko'ring.")
+        else:
+            await message.answer(f"⚠️ Ovozni tanib bo'lmadi (kod: {code}).")
+        return
     except Exception:
-        logger.exception("STT xatosi")
+        logger.exception("STT kutilmagan xatosi")
         await message.answer("⚠️ Ovozni matnga aylantirib bo'lmadi.")
         return
 

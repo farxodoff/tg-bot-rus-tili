@@ -8,6 +8,8 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
+from google.genai import errors
+
 from ai_client import chat, extract_russian, has_russian, text_to_speech
 from db import Database, User
 from keyboards import back_menu, reply_actions
@@ -72,8 +74,25 @@ async def on_chat_message(
 
     try:
         reply = await chat(system, history, message.text)
+    except errors.APIError as e:
+        code = getattr(e, "code", None)
+        logger.warning("Gemini API xatosi: code=%s", code)
+        if code == 503:
+            await message.answer(
+                "⏳ Gemini server hozir juda band. 30 soniyadan keyin qayta yuboring."
+            )
+        elif code == 429:
+            await message.answer(
+                "⏳ Bepul tarif limiti tugadi (daqiqada 15 ta so'rov). "
+                "Bir daqiqa kutib qayta yuboring."
+            )
+        else:
+            await message.answer(
+                f"⚠️ Gemini xatosi (kod: {code}). Biroz keyinroq qayta urinib ko'ring."
+            )
+        return
     except Exception:
-        logger.exception("AI chat xatosi")
+        logger.exception("AI chat kutilmagan xatosi")
         await message.answer(
             "⚠️ Hozir javob bera olmadim. Biroz keyinroq qayta urinib ko'ring."
         )

@@ -1,16 +1,18 @@
 """AI client: Google Gemini (chat / JSON / STT) + edge-tts (TTS).
 
 Hammasi BEPUL — Gemini'ning bepul tarifi, edge-tts esa kalit ham talab qilmaydi.
+Vaqtinchalik xatolarda avtomatik qayta urinish va zaxira modelga o'tish bor.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 
 import edge_tts
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from config import settings
 from prompts import EXTRACT_RU_SYSTEM
@@ -18,6 +20,43 @@ from prompts import EXTRACT_RU_SYSTEM
 logger = logging.getLogger(__name__)
 
 _client = genai.Client(api_key=settings.gemini_api_key)
+
+# Vaqtinchalik xato kodlari (server band, rate limit va h.k.)
+_RETRY_CODES = {429, 500, 502, 503, 504}
+
+# Asosiy model band bo'lsa, ushbu modellarga ketma-ket o'tib ko'riladi
+_FALLBACK_MODELS = ("gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite")
+
+
+async def _generate(contents, config) -> types.GenerateContentResponse:
+    """Asosiy modelda urin, vaqtinchalik xatoda qayta urin, keyin fallback'ga o't."""
+    primary = settings.gemini_model
+    candidates = [primary] + [m for m in _FALLBACK_MODELS if m != primary]
+    last_err: Exception | None = None
+
+    for model in candidates:
+        for attempt in range(2):
+            try:
+                return await _client.aio.models.generate_content(
+                    model=model, contents=contents, config=config,
+                )
+            except errors.APIError as e:
+                last_err = e
+                code = getattr(e, "code", None)
+                if code in _RETRY_CODES:
+                    delay = 1.0 * (attempt + 1)
+                    logger.warning(
+                        "Gemini %s -> %s, %.1fs kutib qayta urinaman",
+                        model, code, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+        logger.warning("Gemini %s ishlamadi — fallback modelga o'tyapman", model)
+
+    if last_err:
+        raise last_err
+    raise RuntimeError("Gemini'ning hech qaysi modeli javob bermadi")
 
 
 def _to_gemini_contents(history: list[dict], user_message: str) -> list:
@@ -36,30 +75,24 @@ def _to_gemini_contents(history: list[dict], user_message: str) -> list:
 
 async def chat(system_prompt: str, history: list[dict], user_message: str) -> str:
     contents = _to_gemini_contents(history, user_message)
-    response = await _client.aio.models.generate_content(
-        model=settings.gemini_model,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=0.6,
-            max_output_tokens=900,
-        ),
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        temperature=0.6,
+        max_output_tokens=900,
     )
+    response = await _generate(contents, config)
     return (response.text or "").strip()
 
 
 async def chat_json(system_prompt: str, user_message: str) -> dict:
     """JSON formatdagi javob (quiz, daily word)."""
-    response = await _client.aio.models.generate_content(
-        model=settings.gemini_model,
-        contents=user_message,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=0.7,
-            max_output_tokens=1500,
-            response_mime_type="application/json",
-        ),
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        temperature=0.7,
+        max_output_tokens=1500,
+        response_mime_type="application/json",
     )
+    response = await _generate(user_message, config)
     raw = (response.text or "").strip()
     try:
         return json.loads(raw)
@@ -81,21 +114,16 @@ async def text_to_speech(text: str) -> bytes:
 
 async def speech_to_text(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
     """Gemini multimodal — ovozli xabarni matnga o'tkazadi (rus tili ustuvor)."""
-    response = await _client.aio.models.generate_content(
-        model=settings.gemini_model,
-        contents=[
-            types.Part(text=(
-                "Transkripsiya qiling. Faqat ovozda eshitilgan matnni qaytaring "
-                "(asosan ruscha, kirill yozuvida). Hech qanday izoh, qo'shtirnoq "
-                "yoki sarlavha qo'shmang."
-            )),
-            types.Part(inline_data=types.Blob(data=audio_bytes, mime_type=mime)),
-        ],
-        config=types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=500,
-        ),
-    )
+    contents = [
+        types.Part(text=(
+            "Transkripsiya qiling. Faqat ovozda eshitilgan matnni qaytaring "
+            "(asosan ruscha, kirill yozuvida). Hech qanday izoh, qo'shtirnoq "
+            "yoki sarlavha qo'shmang."
+        )),
+        types.Part(inline_data=types.Blob(data=audio_bytes, mime_type=mime)),
+    ]
+    config = types.GenerateContentConfig(temperature=0, max_output_tokens=500)
+    response = await _generate(contents, config)
     return (response.text or "").strip()
 
 
@@ -123,13 +151,10 @@ async def extract_russian(text: str) -> str:
     if direct_lines:
         return " ".join(direct_lines)[:1000]
 
-    response = await _client.aio.models.generate_content(
-        model=settings.gemini_model,
-        contents=text,
-        config=types.GenerateContentConfig(
-            system_instruction=EXTRACT_RU_SYSTEM,
-            temperature=0,
-            max_output_tokens=400,
-        ),
+    config = types.GenerateContentConfig(
+        system_instruction=EXTRACT_RU_SYSTEM,
+        temperature=0,
+        max_output_tokens=400,
     )
+    response = await _generate(text, config)
     return (response.text or "").strip()[:1000]
