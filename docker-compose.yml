@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: tg_bot_rus_tili
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    # Webhook rejimida ishlatsangiz portni oching:
+    # ports:
+    #   - "8080:8080"
