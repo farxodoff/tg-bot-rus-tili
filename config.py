@@ -36,6 +36,7 @@ class Settings:
     gemini_api_key: str
     gemini_model: str
     tts_voice: str
+    tts_voice_uz: str
 
     db_path: Path
 
@@ -62,6 +63,7 @@ settings = Settings(
     gemini_api_key=_get("GEMINI_API_KEY", required=True),
     gemini_model=_get("GEMINI_MODEL", "gemini-2.5-flash"),
     tts_voice=_get("TTS_VOICE", "ru-RU-DmitryNeural"),
+    tts_voice_uz=_get("TTS_VOICE_UZ", "uz-UZ-MadinaNeural"),
     db_path=Path(_get("DB_PATH", "data/bot.sqlite3")),
     throttle_rate=_float("THROTTLE_RATE", 1.0),
     daily_word_hour=_int("DAILY_WORD_HOUR", 9),

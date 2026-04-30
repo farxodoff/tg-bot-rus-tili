@@ -9,7 +9,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from google.genai import errors
 
-from ai_client import chat, extract_russian, has_russian, text_to_speech
+from ai_client import chat, has_russian, text_to_speech_mixed
 from db import Database, User
 from keyboards import back_menu, reply_actions
 from prompts import DIALOG_OPENER, MODE_INTROS, MODE_TITLES, mode_prompt
@@ -101,12 +101,10 @@ async def on_chat_message(
 
 @router.callback_query(F.data == "tts")
 async def on_tts(callback: CallbackQuery) -> None:
-    """Avvalgi xabarning ruscha qismini ovoz qilib yuboradi."""
-    if not callback.message or not callback.message.reply_to_message:
-        # bot javobining matni — `callback.message` o'zining matnida
-        text = callback.message.text or callback.message.caption or ""
-    else:
-        text = callback.message.text or ""
+    """Bot javobini har til o'z ovozi bilan o'qib yuboradi."""
+    if not callback.message:
+        return
+    text = callback.message.text or callback.message.caption or ""
 
     if not text or not has_russian(text):
         await callback.answer("Ruscha matn topilmadi.", show_alert=True)
@@ -118,11 +116,10 @@ async def on_tts(callback: CallbackQuery) -> None:
     )
 
     try:
-        ru_text = await extract_russian(text)
-        if not ru_text:
-            await callback.message.answer("⚠️ Ruscha matnni ajratib bo'lmadi.")
+        audio, caption = await text_to_speech_mixed(text)
+        if not audio:
+            await callback.message.answer("⚠️ O'qish uchun matn topilmadi.")
             return
-        audio = await text_to_speech(ru_text)
     except Exception:
         logger.exception("TTS xatosi")
         await callback.message.answer("⚠️ Ovozga aylantira olmadim.")
@@ -133,5 +130,5 @@ async def on_tts(callback: CallbackQuery) -> None:
         audio_file,
         title="Talaffuz",
         performer="Rus tili boti",
-        caption=ru_text[:1000],
+        caption=caption[:1000],
     )

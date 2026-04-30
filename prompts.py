@@ -154,10 +154,3 @@ DAILY_WORD_SYSTEM = (
 )
 
 
-# ----- TRANSLITERATION extractor (TTS uchun) -----
-EXTRACT_RU_SYSTEM = (
-    "Quyidagi matndan FAQAT ruscha (kirill) qismlarni ajratib chiqaring. "
-    "Hech qanday izoh, sarlavha yoki belgi qo'shmang — faqat ruscha so'z va "
-    "gaplarni bo'shliq bilan ajratilgan holda qaytaring. Agar ruscha matn "
-    "topilmasa, bo'sh satr qaytaring."
-)

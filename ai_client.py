@@ -15,7 +15,6 @@ from google import genai
 from google.genai import errors, types
 
 from config import settings
-from prompts import EXTRACT_RU_SYSTEM
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +101,19 @@ async def chat_json(system_prompt: str, user_message: str) -> dict:
         return json.loads(cleaned)
 
 
-async def text_to_speech(text: str) -> bytes:
-    """edge-tts (Microsoft) — bepul TTS, MP3 oqimini qaytaradi."""
-    communicate = edge_tts.Communicate(text, settings.tts_voice)
+async def _tts_one(text: str, voice: str) -> bytes:
+    """Bitta segmentni edge-tts orqali ovozga aylantiradi."""
+    communicate = edge_tts.Communicate(text, voice)
     chunks: list[bytes] = []
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             chunks.append(chunk["data"])
     return b"".join(chunks)
+
+
+async def text_to_speech(text: str) -> bytes:
+    """Bitta ovoz bilan (asosiy ruscha) — eski API uchun."""
+    return await _tts_one(text, settings.tts_voice)
 
 
 async def speech_to_text(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
@@ -128,11 +132,14 @@ async def speech_to_text(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
 
 
 _RUSSIAN_RE = re.compile(r"[А-Яа-яЁё]")
+_LATIN_RE = re.compile(r"[A-Za-z]")
 _MARKDOWN_RE = re.compile(r"[*_`~#>]+")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _PARENS_RE = re.compile(r"\(([^()]*)\)")
 _BRACKETS_RE = re.compile(r"\[([^\[\]]*)\]")
 _MULTISPACE_RE = re.compile(r"\s+")
+_CYR_WORD_RE = re.compile(r"[А-Яа-яЁё][А-Яа-яЁё\-’']*")
+_LAT_WORD_RE = re.compile(r"[A-Za-z][A-Za-z\-’']*")
 
 
 def has_russian(text: str) -> bool:
@@ -140,11 +147,21 @@ def has_russian(text: str) -> bool:
 
 
 def _unwrap_or_drop(s: str, pattern: re.Pattern[str]) -> str:
-    """Qavs ichida ruscha bo'lsa — ichini saqlaydi, qavslarni olib tashlaydi.
-    Ruscha bo'lmasa — butun qavsni o'chiradi (transliteratsiya/izoh)."""
+    """Qavs ichi ruscha bo'lsa — saqlaydi, faqat lotin bo'lsa va oldidagi
+    haqiqiy so'z ruscha bo'lsa — transliteratsiya deb hisoblab o'chiradi.
+    Aks holda (oldida lotincha so'z bor) — qavs ichini saqlaydi (o'zbek izohi)."""
     def repl(m: re.Match[str]) -> str:
         content = m.group(1)
-        return content if _RUSSIAN_RE.search(content) else " "
+        if _RUSSIAN_RE.search(content):
+            return " " + content + " "
+        # Tinish belgilari va bo'shliqdan keyin oxirgi haqiqiy harfni topamiz.
+        prev = s[: m.start()]
+        i = len(prev) - 1
+        while i >= 0 and not (prev[i].isalpha() or prev[i].isdigit()):
+            i -= 1
+        if i >= 0 and _RUSSIAN_RE.match(prev[i]):
+            return " "
+        return " " + content + " "
     return pattern.sub(repl, s)
 
 
@@ -156,33 +173,89 @@ def _clean_for_tts(text: str) -> str:
     text = _MARKDOWN_RE.sub("", text)
     # Toq qolgan qavslar bo'lsa — ovoz pauza qilmasin uchun olib tashlaymiz.
     text = re.sub(r"[()\[\]<>]", " ", text)
+    text = _MULTISPACE_RE.sub(" ", text)
     return text
 
 
-async def extract_russian(text: str) -> str:
-    """Aralash matndan faqat ruscha qismni ajratadi (TTS uchun)."""
-    if not has_russian(text):
-        return ""
+def _split_by_script(text: str) -> list[tuple[str, str]]:
+    """Tozalangan matnni [(voice_tag, segment), ...] ko'rinishida qaytaradi.
+    voice_tag: 'ru' (kirillcha) yoki 'uz' (lotincha).
+    Yonma-yon bir xil til segmentlari (orasidagi tinish belgilari bilan) birlashtiriladi.
+    """
+    segments: list[tuple[str, str]] = []
+    current_voice: str | None = None
+    buffer: list[str] = []
 
-    text = _clean_for_tts(text)
+    pos = 0
+    n = len(text)
+    while pos < n:
+        m = _CYR_WORD_RE.match(text, pos)
+        if m:
+            atom_voice: str | None = "ru"
+            atom = m.group(0)
+            pos = m.end()
+        else:
+            m = _LAT_WORD_RE.match(text, pos)
+            if m:
+                atom_voice = "uz"
+                atom = m.group(0)
+                pos = m.end()
+            else:
+                atom_voice = None
+                atom = text[pos]
+                pos += 1
 
-    direct_lines = []
-    for line in text.splitlines():
-        ru_chars = _RUSSIAN_RE.findall(line)
-        if len(ru_chars) >= 3:
-            cleaned = re.sub(r"^[^А-Яа-яЁё]+", "", line)
-            cleaned = re.sub(r"[^А-Яа-яЁё.,!?\-\s'’\":]+$", "", cleaned)
-            cleaned = _MULTISPACE_RE.sub(" ", cleaned).strip()
-            if cleaned:
-                direct_lines.append(cleaned)
+        if atom_voice is None:
+            buffer.append(atom)
+        elif current_voice is None or atom_voice == current_voice:
+            current_voice = atom_voice
+            buffer.append(atom)
+        else:
+            seg = "".join(buffer).strip()
+            if seg and current_voice:
+                segments.append((current_voice, seg))
+            buffer = [atom]
+            current_voice = atom_voice
 
-    if direct_lines:
-        return " ".join(direct_lines)[:1000]
+    seg = "".join(buffer).strip()
+    if seg and current_voice:
+        segments.append((current_voice, seg))
 
-    config = types.GenerateContentConfig(
-        system_instruction=EXTRACT_RU_SYSTEM,
-        temperature=0,
-        max_output_tokens=400,
+    # Juda qisqa o'zbek bo'laklarini (1-2 harf — odatda noto'g'ri tan olingan
+    # transliteratsiya yoki abbreviatura) tashlab yuboramiz.
+    result: list[tuple[str, str]] = []
+    for v, s in segments:
+        if v == "ru" and _RUSSIAN_RE.search(s):
+            result.append((v, s))
+        elif v == "uz" and len(_LATIN_RE.findall(s)) >= 3:
+            result.append((v, s))
+    return result
+
+
+async def text_to_speech_mixed(text: str) -> tuple[bytes, str]:
+    """Aralash matnni har til o'z ovozi bilan o'qiydi va MP3'ni birlashtiradi.
+
+    Ruscha qismlar — `settings.tts_voice` (Dmitry, erkak),
+    o'zbekcha qismlar — `settings.tts_voice_uz` (Madina, ayol).
+    Qaytaradi: (audio_bytes, caption_text).
+    """
+    cleaned = _clean_for_tts(text)
+    segments = _split_by_script(cleaned)
+    if not segments:
+        return b"", ""
+
+    voice_for = {"ru": settings.tts_voice, "uz": settings.tts_voice_uz}
+
+    results = await asyncio.gather(
+        *(_tts_one(seg, voice_for[v]) for v, seg in segments),
+        return_exceptions=True,
     )
-    response = await _generate(text, config)
-    return _MULTISPACE_RE.sub(" ", (response.text or "")).strip()[:1000]
+    audio_chunks: list[bytes] = []
+    for r in results:
+        if isinstance(r, bytes):
+            audio_chunks.append(r)
+        else:
+            logger.warning("TTS segment xatosi: %s", r)
+    audio = b"".join(audio_chunks)
+    caption = " ".join(s for _, s in segments)
+    return audio, caption
